@@ -1,0 +1,63 @@
+<svg width="320" height="360" viewBox="0 0 320 360" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#1B332A"/>
+      <stop offset="100%" stop-color="#0F1F19"/>
+    </radialGradient>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8FDC79"/>
+      <stop offset="100%" stop-color="#5C8F53"/>
+    </linearGradient>
+    <radialGradient id="cheekGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E3B23C" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#E3B23C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="320" height="360" rx="28" fill="url(#bg)"/>
+
+  <!-- ambient glow -->
+  <ellipse cx="160" cy="230" rx="120" ry="24" fill="#000" opacity="0.25"/>
+
+  <!-- sprout antenna -->
+  <path d="M160 88 C 150 68, 152 48, 168 34" stroke="#5A3D2B" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <ellipse cx="170" cy="30" rx="14" ry="9" fill="#E3B23C" transform="rotate(-25 170 30)"/>
+  <ellipse cx="182" cy="40" rx="10" ry="7" fill="#8FDC79" transform="rotate(10 182 40)"/>
+
+  <!-- body: rounded seed/leaf shape -->
+  <path d="M160 90
+           C 225 90, 255 145, 250 205
+           C 246 260, 205 300, 160 300
+           C 115 300, 74 260, 70 205
+           C 65 145, 95 90, 160 90 Z"
+        fill="url(#bodyGrad)"/>
+
+  <!-- leafy shoulder tufts -->
+  <ellipse cx="82" cy="180" rx="22" ry="13" fill="#7FBF6B" transform="rotate(-35 82 180)"/>
+  <ellipse cx="238" cy="180" rx="22" ry="13" fill="#7FBF6B" transform="rotate(35 238 180)"/>
+
+  <!-- cheek glow (AI warmth) -->
+  <circle cx="120" cy="200" r="26" fill="url(#cheekGlow)"/>
+  <circle cx="200" cy="200" r="26" fill="url(#cheekGlow)"/>
+
+  <!-- face -->
+  <circle cx="132" cy="188" r="12" fill="#12241D"/>
+  <circle cx="188" cy="188" r="12" fill="#12241D"/>
+  <circle cx="136" cy="184" r="4" fill="#F4EDDD"/>
+  <circle cx="192" cy="184" r="4" fill="#F4EDDD"/>
+
+  <path d="M138 220 Q 160 238, 182 220" stroke="#12241D" stroke-width="5" fill="none" stroke-linecap="round"/>
+
+  <!-- little belly mark: a tiny leaf, like a badge -->
+  <ellipse cx="160" cy="258" rx="12" ry="8" fill="#E3B23C" opacity="0.85"/>
+
+  <!-- floating knowledge sparkles -->
+  <g fill="#E3B23C">
+    <circle cx="60" cy="120" r="4"/>
+    <circle cx="255" cy="110" r="3"/>
+    <circle cx="270" cy="150" r="2.5"/>
+    <circle cx="50" cy="160" r="2.5"/>
+  </g>
+
+  <text x="160" y="336" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="24" font-weight="700" fill="#F4EDDD">Babsi</text>
+</svg>
