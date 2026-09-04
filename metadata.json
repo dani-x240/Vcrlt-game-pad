@@ -1,0 +1,7 @@
+{
+  "name": "VCRLT Game Pad",
+  "description": "Turn an Android phone into a full-screen wireless gaming controller for PC with the dani.x240 controller family, fast connect, XInput mapping, and console receiver.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
