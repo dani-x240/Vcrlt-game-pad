@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../protocol/vcrlt_packet.dart';
+import 'vcrlt_packet.dart';
 import 'network_manager.dart';
 import 'virtual_gamepad.dart';
 

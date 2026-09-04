@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../protocol/vcrlt_packet.dart';
+import 'vcrlt_packet.dart';
 import 'network_client.dart';
 
 class DaniX240PadScreen extends StatefulWidget {

@@ -2,7 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import '../../protocol/vcrlt_packet.dart';
+import 'vcrlt_packet.dart';
 import 'virtual_gamepad.dart';
 
 class ConnectedClient {

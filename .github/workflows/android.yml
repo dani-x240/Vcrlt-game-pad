@@ -38,12 +38,20 @@ jobs:
           if [ ! -d "android" ]; then
             flutter create . --platforms=android --org com.vcrlt.gamepad --project-name vcrlt_android_controller
           fi
+          # Ensure NDK version matches modern plugins
+          if [ -f "android/app/build.gradle.kts" ]; then
+            sed -i '/ndkVersion =/d' android/app/build.gradle.kts
+            sed -i '/android {/a \    ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
+          elif [ -f "android/app/build.gradle" ]; then
+            sed -i '/ndkVersion/d' android/app/build.gradle
+            sed -i '/android {/a \    ndkVersion "27.0.12077973"' android/app/build.gradle
+          fi
 
       - name: Get Dependencies
         working-directory: ./flutter_source/android_controller
         run: flutter pub get
 
-      - name: Build Android Release APK (Universal & Splits)
+      - name: Build Android Release APK
         working-directory: ./flutter_source/android_controller
         run: |
           flutter build apk --release
