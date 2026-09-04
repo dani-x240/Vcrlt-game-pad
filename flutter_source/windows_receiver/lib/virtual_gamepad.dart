@@ -3,7 +3,7 @@
 
 import 'dart:async';
 import 'dart:ffi' as ffi;
-import '../../protocol/vcrlt_packet.dart';
+import 'vcrlt_packet.dart';
 
 class VirtualGamepadService {
   bool isInitialized = false;
