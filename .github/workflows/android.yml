@@ -39,22 +39,44 @@ jobs:
             flutter create . --platforms=android --org com.vcrlt.gamepad --project-name vcrlt_android_controller
           fi
 
-          # Ensure AndroidManifest has proper permissions and hardware features are NOT required (prevents itel A50 install failures)
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ]; then
-            sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <uses-permission android:name="android.permission.CAMERA"/>\n    <uses-feature android:name="android.hardware.camera" android:required="false"/>\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>' "$MANIFEST" 2>/dev/null || true
-          fi
+          # Ensure AndroidManifest and build.gradle are safely configured without XML corruption
+          python3 - << 'EOF'
+          import os
 
-          # Ensure release build is signed with debug keystore so Android 14 (itel A50) never rejects the APK with "can't install on your device"
-          if [ -f "android/app/build.gradle.kts" ]; then
-            sed -i '/ndkVersion =/d' android/app/build.gradle.kts
-            sed -i '/android {/a \    ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
-            sed -i 's/signingConfig = signingConfigs.getByName("release")/signingConfig = signingConfigs.getByName("debug")/g' android/app/build.gradle.kts
-          elif [ -f "android/app/build.gradle" ]; then
-            sed -i '/ndkVersion/d' android/app/build.gradle
-            sed -i '/android {/a \    ndkVersion "27.0.12077973"' android/app/build.gradle
-            sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/g' android/app/build.gradle
-          fi
+          manifest_path = "android/app/src/main/AndroidManifest.xml"
+          if os.path.exists(manifest_path):
+              with open(manifest_path, "r") as f:
+                  content = f.read()
+              perms = """
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+              """
+              if "<uses-permission" not in content:
+                  content = content.replace("<application", perms + "\n    <application")
+                  with open(manifest_path, "w") as f:
+                      f.write(content)
+
+          gradle_kts = "android/app/build.gradle.kts"
+          if os.path.exists(gradle_kts):
+              with open(gradle_kts, "r") as f:
+                  content = f.read()
+              content = content.replace('signingConfig = signingConfigs.getByName("release")', 'signingConfig = signingConfigs.getByName("debug")')
+              with open(gradle_kts, "w") as f:
+                  f.write(content)
+
+          gradle = "android/app/build.gradle"
+          if os.path.exists(gradle):
+              with open(gradle, "r") as f:
+                  content = f.read()
+              content = content.replace("signingConfig signingConfigs.release", "signingConfig signingConfigs.debug")
+              with open(gradle, "w") as f:
+                  f.write(content)
+          EOF
 
           # Replace default Flutter launcher icon with VCRLT custom gaming pad logo
           if [ -f "assets/icon.png" ]; then
