@@ -69,8 +69,6 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
     _client.onPcDiscovered = (pc) {
       if (mounted) {
         setState(() {
-          _ipInput = pc.ip;
-          _pinInput = pc.defaultPin;
         });
       }
     };
