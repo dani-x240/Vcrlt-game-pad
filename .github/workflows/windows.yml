@@ -1,0 +1,65 @@
+name: Build VCRLT Windows Receiver EXE
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows Desktop Receiver (.exe)
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Enable Windows Desktop Support
+        run: flutter config --enable-windows-desktop
+
+      - name: Verify Environment
+        run: flutter doctor -v
+
+      - name: Scaffold Windows platform scaffolding if missing
+        working-directory: ./flutter_source/windows_receiver
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "windows")) {
+            flutter create . --platforms=windows --org com.vcrlt.receiver --project-name vcrlt_windows_receiver
+          }
+          # Apply the custom gamepad icon to the Windows .exe runner
+          if (Test-Path "assets/app_icon.ico") {
+            Copy-Item -Path "assets/app_icon.ico" -Destination "windows/runner/resources/app_icon.ico" -Force
+            Write-Host "VCRLT gamepad icon embedded into Windows .exe resources successfully"
+          }
+
+      - name: Get Dependencies
+        working-directory: ./flutter_source/windows_receiver
+        run: flutter pub get
+
+      - name: Build Windows Desktop Release
+        working-directory: ./flutter_source/windows_receiver
+        run: flutter build windows --release -v
+
+      - name: Package VCRLT Receiver Release
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "flutter_source/windows_receiver/build/windows/x64/runner/Release/*" -DestinationPath "VCRLT-PC-Receiver-Windows-x64.zip"
+
+      - name: Upload Windows Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VCRLT-PC-Receiver-Windows-x64
+          path: VCRLT-PC-Receiver-Windows-x64.zip

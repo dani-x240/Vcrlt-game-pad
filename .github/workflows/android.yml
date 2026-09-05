@@ -1,0 +1,74 @@
+name: Build VCRLT Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Android APK (dani.x240 Controller)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java Development Kit (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter Installation
+        run: flutter doctor -v
+
+      - name: Scaffold Android platform scaffolding if missing
+        working-directory: ./flutter_source/android_controller
+        run: |
+          if [ ! -d "android" ]; then
+            flutter create . --platforms=android --org com.vcrlt.gamepad --project-name vcrlt_android_controller
+          fi
+          # Ensure NDK version matches modern plugins
+          if [ -f "android/app/build.gradle.kts" ]; then
+            sed -i '/ndkVersion =/d' android/app/build.gradle.kts
+            sed -i '/android {/a \    ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
+          elif [ -f "android/app/build.gradle" ]; then
+            sed -i '/ndkVersion/d' android/app/build.gradle
+            sed -i '/android {/a \    ndkVersion "27.0.12077973"' android/app/build.gradle
+          fi
+
+          # Replace default Flutter launcher icon with VCRLT custom gaming pad logo
+          if [ -f "assets/icon.png" ]; then
+            mkdir -p android/app/src/main/res/mipmap-mdpi android/app/src/main/res/mipmap-hdpi android/app/src/main/res/mipmap-xhdpi android/app/src/main/res/mipmap-xxhdpi android/app/src/main/res/mipmap-xxxhdpi
+            cp assets/icon.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png 2>/dev/null || true
+            cp assets/icon.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png 2>/dev/null || true
+            cp assets/icon.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png 2>/dev/null || true
+            cp assets/icon.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png 2>/dev/null || true
+            cp assets/icon.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png 2>/dev/null || true
+          fi
+
+      - name: Get Dependencies
+        working-directory: ./flutter_source/android_controller
+        run: flutter pub get
+
+      - name: Build Android Release APK
+        working-directory: ./flutter_source/android_controller
+        run: |
+          flutter build apk --release
+          flutter build apk --release --split-per-abi
+
+      - name: Upload Universal & ABI-Split APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VCRLT-Controller-Android-APKs
+          path: flutter_source/android_controller/build/app/outputs/flutter-apk/*.apk
