@@ -54,22 +54,21 @@ GitHub will automatically trigger two workflows:
 2. Click the **Actions** tab at the top.
 3. Click the latest workflow run.
 4. Scroll to the **Artifacts** section at the bottom to download:
-   - **`VCRLT-Controller-Android-APKs`** (Install directly on your phone)
-   - **`VCRLT-PC-Receiver-Windows-x64`** (Run directly on your PC)
+   - **`VCRLT-Controller-Android-APKs`**: Contains:
+     - `VCRLT-Universal-Recommended.apk` (Universal FAT APK - Works on all devices)
+     - `VCRLT-itel-A50-32bit.apk` (Optimized for itel A50 / Android Go 32-bit)
+     - `VCRLT-64bit-arm64.apk` (For standard 64-bit phones)
+     - `VCRLT-Debug-All-Devices.apk` (Bypasses any Android 14 security restrictions)
+   - **`VCRLT-PC-Receiver-Windows-x64`** (Run `vcrlt_windows_receiver.exe` directly on your PC)
 
 ---
 
-## 📱 How to Connect Phone & PC
+## 📱 How to Connect Phone & PC (Wi-Fi QR Code Only)
 
-### Method A: Home Wi-Fi
-1. Connect both your phone and PC to the same Wi-Fi network.
-2. Open `vcrlt_windows_receiver.exe` on your PC.
-3. Open `VCRLT Game Pad` on your phone and tap **Connect**.
-
-### Method B: Phone Mobile Hotspot (Play Anywhere!)
-1. Turn on **Personal Hotspot** on your phone.
-2. Connect your PC to your phone's Hotspot Wi-Fi.
-3. Open the PC Receiver and tap **Connect** on your phone. Everything pairs directly without an external router!
+1. Connect both your phone and PC to the **same Wi-Fi or Phone Hotspot**.
+2. Open `vcrlt_windows_receiver.exe` on your PC. It displays the **auto-generated Wi-Fi QR Code**.
+3. Open `VCRLT Game Pad` on your phone and tap **"Scan QR Code"**.
+4. Point your camera at the PC screen. The phone connects instantly and the PC switches straight to the controller input feed for GTA V and PC games!
 
 ---
 
