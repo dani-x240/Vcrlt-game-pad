@@ -185,7 +185,7 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
               children: [
                 if (widget.suggestedIp != null && widget.suggestedIp!.isNotEmpty && widget.suggestedIp != '127.0.0.1')
                   Container(
-                    margin: const EdgeInsets.bottom(12),
+                    margin: const EdgeInsets.only(bottom: 12),
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF10B981),
