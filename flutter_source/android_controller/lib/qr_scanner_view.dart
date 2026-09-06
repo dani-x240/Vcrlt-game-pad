@@ -1,17 +1,22 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class QrScannerView extends StatefulWidget {
   final Function(String rawPayload) onQrDetected;
   final VoidCallback onCancel;
-  final String suggestedIp;
+  final String? suggestedIp;
+  final String? detectedPcName;
 
   const QrScannerView({
     super.key,
     required this.onQrDetected,
     required this.onCancel,
-    this.suggestedIp = '192.168.1.108',
+    this.suggestedIp,
+    this.detectedPcName,
   });
 
   @override
@@ -19,39 +24,70 @@ class QrScannerView extends StatefulWidget {
 }
 
 class _QrScannerViewState extends State<QrScannerView> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scanLaserAnimation;
-  bool _detected = false;
+  late MobileScannerController _controller;
+  late AnimationController _animController;
+  late Animation<double> _laserAnim;
+  bool _hasPermission = false;
+  bool _isLoading = true;
+  bool _scanned = false;
+  bool _torch = false;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+
+    _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 1600),
     )..repeat(reverse: true);
 
-    _scanLaserAnimation = Tween<double>(begin: 0.1, end: 0.9).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    _laserAnim = Tween<double>(begin: 0.05, end: 0.95).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
     );
+
+    _checkAndAskPermission();
+  }
+
+  Future<void> _checkAndAskPermission() async {
+    setState(() => _isLoading = true);
+    final status = await Permission.camera.request();
+    if (mounted) {
+      setState(() {
+        _hasPermission = status.isGranted;
+        _isLoading = false;
+      });
+      if (_hasPermission) {
+        _controller.start();
+      }
+    }
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _animController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  void _triggerDetection(String payload) {
-    if (_detected) return;
-    setState(() => _detected = true);
-    try {
-      HapticFeedback.mediumImpact();
-    } catch (_) {}
-
-    Future.delayed(const Duration(milliseconds: 400), () {
-      widget.onQrDetected(payload);
-    });
+  void _onDetect(BarcodeCapture capture) {
+    if (_scanned) return;
+    for (final b in capture.barcodes) {
+      final code = b.rawValue;
+      if (code != null && code.trim().isNotEmpty) {
+        _scanned = true;
+        try { HapticFeedback.mediumImpact(); } catch (_) {}
+        setState(() {});
+        Future.delayed(const Duration(milliseconds: 250), () {
+          widget.onQrDetected(code.trim());
+        });
+        break;
+      }
+    }
   }
 
   @override
@@ -60,124 +96,57 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Background simulated camera lens & grid
-          Positioned.fill(
-            child: Container(
-              color: const Color(0xFF07090E),
-              child: CustomPaint(
-                painter: _CameraGridPainter(),
-              ),
-            ),
-          ),
+          if (_hasPermission)
+            MobileScanner(
+              controller: _controller,
+              onDetect: _onDetect,
+              errorBuilder: (ctx, err, _) => _fallback('Camera unavailable: ${err.errorCode}'),
+            )
+          else if (_isLoading)
+            const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
+          else
+            _buildPermissionPrompt(),
 
-          // Central Viewfinder Cutout
-          Center(
-            child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: _detected ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
-                  width: 3,
+          if (_hasPermission && !_scanned)
+            _buildScanTarget(),
+
+          if (_scanned)
+            Container(
+              color: Colors.black.withOpacity(0.75),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, color: Color(0xFF10B981), size: 72),
+                    SizedBox(height: 16),
+                    Text(
+                      'QR CODE DETECTED',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    SizedBox(height: 6),
+                    Text('Connecting to PC...', style: TextStyle(color: Colors.white70)),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _detected
-                        ? const Color(0xFF10B981).withOpacity(0.4)
-                        : const Color(0xFF2563EB).withOpacity(0.25),
-                    blurRadius: 30,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // Corner brackets
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(width: 24, height: 24, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Colors.white, width: 3), left: BorderSide(color: Colors.white, width: 3)))),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(width: 24, height: 24, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Colors.white, width: 3), right: BorderSide(color: Colors.white, width: 3)))),
-                  ),
-                  Positioned(
-                    bottom: 8,
-                    left: 8,
-                    child: Container(width: 24, height: 24, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white, width: 3), left: BorderSide(color: Colors.white, width: 3)))),
-                  ),
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: Container(width: 24, height: 24, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white, width: 3), right: BorderSide(color: Colors.white, width: 3)))),
-                  ),
-
-                  // Sweeping laser animation
-                  if (!_detected)
-                    AnimatedBuilder(
-                      animation: _scanLaserAnimation,
-                      builder: (context, child) {
-                        return Positioned(
-                          top: _scanLaserAnimation.value * 270,
-                          left: 12,
-                          right: 12,
-                          child: Container(
-                            height: 2.5,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Colors.transparent, Color(0xFF60A5FA), Colors.white, Color(0xFF60A5FA), Colors.transparent],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF3B82F6).withOpacity(0.8),
-                                  blurRadius: 8,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-
-                  // Detected feedback checkmark
-                  if (_detected)
-                    const Center(
-                      child: Icon(
-                        Icons.check_circle,
-                        color: Color(0xFF10B981),
-                        size: 72,
-                      ),
-                    ),
-                ],
               ),
             ),
-          ),
 
-          // Top App Bar Controls
+          // Top navigation
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white10,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    icon: const Icon(Icons.close, color: Colors.white, size: 22),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: widget.onCancel,
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF101420),
+                      color: const Color(0xFF1E293B).withOpacity(0.85),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white12),
                     ),
                     child: const Row(
                       children: [
@@ -185,78 +154,70 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
                         SizedBox(width: 8),
                         Text(
                           'SCAN PC QR CODE',
-                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white, letterSpacing: 1),
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 48), // Balance close button
+                  if (_hasPermission)
+                    IconButton(
+                      style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                      icon: Icon(_torch ? Icons.flash_on : Icons.flash_off, color: _torch ? Colors.amber : Colors.white),
+                      onPressed: () async {
+                        await _controller.toggleTorch();
+                        setState(() => _torch = !_torch);
+                      },
+                    )
+                  else
+                    const SizedBox(width: 48),
                 ],
               ),
             ),
           ),
 
-          // Bottom Guidance & Instant Recognition Actions
+          // Bottom card
           Positioned(
             left: 20,
             right: 20,
-            bottom: 30,
+            bottom: 28,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Network notice
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF172554).withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.4)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.wifi, color: Color(0xFF60A5FA), size: 20),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Make sure Phone and PC are on the same Wi-Fi or Phone Hotspot.',
-                          style: TextStyle(fontSize: 11.5, color: Colors.white, height: 1.3),
-                        ),
+                if (widget.suggestedIp != null && widget.suggestedIp!.isNotEmpty && widget.suggestedIp != '127.0.0.1')
+                  Container(
+                    margin: const EdgeInsets.bottom(12),
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Fast Tap-To-Connect trigger when camera is pointed at PC screen
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      elevation: 8,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      icon: const Icon(Icons.wifi_tethering, color: Colors.white),
+                      label: Text(
+                        'PC DETECTED (${widget.detectedPcName ?? widget.suggestedIp}) • TAP TO LINK',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                      onPressed: () {
+                        widget.onQrDetected(jsonEncode({
+                          'ip': widget.suggestedIp,
+                          'port': 4200,
+                          'name': widget.detectedPcName ?? 'PC',
+                        }));
+                      },
                     ),
-                    icon: const Icon(Icons.flash_on, color: Colors.amber, size: 22),
-                    label: Text(
-                      _detected ? 'QR CODE RECOGNIZED • CONNECTING...' : 'AIM AT PC SCREEN & TAP TO LINK',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5, letterSpacing: 0.8),
-                    ),
-                    onPressed: _detected
-                        ? null
-                        : () {
-                            // Instantly capture the QR payload from the PC receiver
-                            final jsonPayload = '{"ip":"${widget.suggestedIp}","port":4200,"name":"PC-RECEIVER"}';
-                            _triggerDetection(jsonPayload);
-                          },
                   ),
-                ),
-                const SizedBox(height: 8),
-
-                const Text(
-                  'Aim camera directly at the QR code displayed on the Windows Receiver screen.',
-                  style: TextStyle(fontSize: 10.5, color: Colors.white38),
-                  textAlign: TextAlign.center,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A).withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: const Text(
+                    'Point camera at the QR code on the Windows PC screen. It pairs automatically.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -265,24 +226,96 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
       ),
     );
   }
-}
 
-class _CameraGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.04)
-      ..strokeWidth = 1.0;
-
-    const step = 32.0;
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
+  Widget _buildScanTarget() {
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 250,
+            height: 250,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFF3B82F6), width: 2),
+            ),
+          ),
+          AnimatedBuilder(
+            animation: _laserAnim,
+            builder: (ctx, _) {
+              final topOffset = (MediaQuery.of(ctx).size.height / 2 - 125) + (_laserAnim.value * 250);
+              return Positioned(
+                top: topOffset,
+                left: MediaQuery.of(ctx).size.width / 2 - 115,
+                right: MediaQuery.of(ctx).size.width / 2 - 115,
+                child: Container(
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF60A5FA),
+                    boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.9), blurRadius: 6)],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget _buildPermissionPrompt() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.camera_alt_outlined, color: Colors.amber, size: 64),
+            const SizedBox(height: 16),
+            const Text(
+              'Camera Permission Needed',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Allow camera access so VCRLT can scan the pairing QR code on your PC.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white60, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _checkAndAskPermission,
+              child: const Text('ALLOW CAMERA'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => openAppSettings(),
+              child: const Text('Open Settings', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fallback(String msg) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.videocam_off, color: Colors.redAccent, size: 48),
+            const SizedBox(height: 12),
+            Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+          ],
+        ),
+      ),
+    );
+  }
 }

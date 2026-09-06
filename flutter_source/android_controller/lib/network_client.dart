@@ -88,47 +88,11 @@ class NetworkClient {
           success: false,
           ip: '',
           port: port,
-          errorMessage: 'Connect both devices to same WiFi',
+          errorMessage: 'Invalid QR code. Please scan the Windows Receiver QR code.',
         );
       }
 
-      // Check if phone and PC are on same network (compare subnet prefix)
-      final phoneIps = await getPhoneLocalIps();
-      bool sameNetwork = false;
-
-      final pcParts = ip.split('.');
-      if (pcParts.length == 4) {
-        final pcSubnet = '${pcParts[0]}.${pcParts[1]}.${pcParts[2]}';
-
-        for (final phIp in phoneIps) {
-          final phParts = phIp.split('.');
-          if (phParts.length == 4) {
-            final phSubnet = '${phParts[0]}.${phParts[1]}.${phParts[2]}';
-            if (pcSubnet == phSubnet) {
-              sameNetwork = true;
-              break;
-            }
-          }
-        }
-      } else {
-        sameNetwork = true;
-      }
-
-      // If local interfaces list is empty (e.g. mobile sandbox permissions), attempt connection
-      if (phoneIps.isEmpty) {
-        sameNetwork = true;
-      }
-
-      if (!sameNetwork) {
-        return QrConnectionResult(
-          success: false,
-          ip: ip,
-          port: port,
-          errorMessage: 'Connect both devices to same WiFi',
-        );
-      }
-
-      // Auto-connect to that IP:port and proceed
+      // Directly auto-connect to the scanned PC IP and port
       await pairWithPc(ip: ip, port: port);
       return QrConnectionResult(success: true, ip: ip, port: port);
     } catch (_) {
@@ -136,7 +100,7 @@ class NetworkClient {
         success: false,
         ip: '',
         port: defaultPort,
-        errorMessage: 'Connect both devices to same WiFi',
+        errorMessage: 'Unable to connect to PC. Make sure both are on same WiFi.',
       );
     }
   }

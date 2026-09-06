@@ -18,6 +18,7 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
   ConnectionStatus _status = ConnectionStatus.disconnected;
   bool _isScanningQr = false;
   String _discoveredIp = '192.168.1.108';
+  String? _discoveredPcName;
 
   // Controller State
   int _sequence = 0;
@@ -69,6 +70,8 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
     _client.onPcDiscovered = (pc) {
       if (mounted) {
         setState(() {
+          _discoveredIp = pc.ip;
+          _discoveredPcName = pc.name;
         });
       }
     };
@@ -163,6 +166,7 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
     if (_isScanningQr) {
       return QrScannerView(
         suggestedIp: _discoveredIp,
+        detectedPcName: _discoveredPcName,
         onCancel: () => setState(() => _isScanningQr = false),
         onQrDetected: (payload) => _handleScannedQr(payload),
       );
@@ -252,6 +256,30 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // Auto-discovered PC on same Wi-Fi
+              if (_discoveredPcName != null && _discoveredIp.isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      elevation: 6,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    icon: const Icon(Icons.flash_on, color: Colors.amber, size: 22),
+                    label: Text(
+                      'AUTO-LINK: $_discoveredPcName ($_discoveredIp)',
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
+                    ),
+                    onPressed: () {
+                      _handleScannedQr('{"ip":"$_discoveredIp","port":4200,"name":"$_discoveredPcName"}');
+                    },
+                  ),
+                ),
+              ],
 
               // ONLY ONE OPTION: Scan QR Code of PC
               SizedBox(
