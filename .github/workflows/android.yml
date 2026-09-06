@@ -45,16 +45,22 @@ jobs:
             sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"\/>\n    <uses-permission android:name="android.permission.VIBRATE"\/>\n    <uses-permission android:name="android.permission.CAMERA"\/>\n    <uses-feature android:name="android.hardware.camera" android:required="false"\/>\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"\/>\n    <application/' "$MANIFEST" 2>/dev/null || true
           fi
 
-          # Set NDK version for Flutter plugins (device_info_plus, vibration, mobile_scanner)
+          # Ensure minSdk is at least 21 for mobile_scanner (Camera2 API) and compileSdk is 34
+          LOCAL_PROP="android/local.properties"
+          touch "$LOCAL_PROP"
+          echo "flutter.minSdkVersion=21" >> "$LOCAL_PROP"
+          echo "flutter.compileSdkVersion=34" >> "$LOCAL_PROP"
+          echo "flutter.targetSdkVersion=34" >> "$LOCAL_PROP"
+
           GRADLE_KTS="android/app/build.gradle.kts"
           if [ -f "$GRADLE_KTS" ]; then
-            sed -i 's/android {/android {\n    ndkVersion = "27.0.12077973"/' "$GRADLE_KTS" 2>/dev/null || true
-            sed -i 's/signingConfig = signingConfigs.getByName("release")/signingConfig = signingConfigs.getByName("debug")/' "$GRADLE_KTS" 2>/dev/null || true
+            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' "$GRADLE_KTS" 2>/dev/null || true
+            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/' "$GRADLE_KTS" 2>/dev/null || true
           fi
           GRADLE="android/app/build.gradle"
           if [ -f "$GRADLE" ]; then
-            sed -i 's/android {/android {\n    ndkVersion "27.0.12077973"/' "$GRADLE" 2>/dev/null || true
-            sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/' "$GRADLE" 2>/dev/null || true
+            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' "$GRADLE" 2>/dev/null || true
+            sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 34/' "$GRADLE" 2>/dev/null || true
           fi
 
           # Embed custom gamepad icon if available
@@ -75,7 +81,7 @@ jobs:
         working-directory: ./flutter_source/android_controller
         run: |
           # Build a single Universal APK that installs on any Android device (32-bit and 64-bit)
-          flutter build apk --release || flutter build apk --debug
+          flutter build apk --release --no-tree-shake-icons || flutter build apk --debug --no-tree-shake-icons
 
           mkdir -p ../../release_apks
           APK_DIR="build/app/outputs/flutter-apk"

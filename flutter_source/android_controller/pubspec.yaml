@@ -11,8 +11,6 @@ dependencies:
     sdk: flutter
   mobile_scanner: ^5.2.3
   permission_handler: ^11.3.1
-  vibration: ^2.0.0
-  flutter_services_binding: ^0.1.0
   shared_preferences: ^2.2.2
   cupertino_icons: ^1.0.6
 
