@@ -122,20 +122,57 @@ class _ReceiverDashboardScreenState extends State<ReceiverDashboardScreen> {
             const SizedBox(width: 14),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'VCRLT PC RECEIVER',
-                  style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 16),
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'REMOTE GAMEPAD RECEIVER',
+                      style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 15),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
+                      ),
+                      child: const Text(
+                        'XINPUT • XBOX 360',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF34D399), letterSpacing: 0.8),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  'Wireless Gamepad Controller',
-                  style: TextStyle(fontSize: 11, color: Colors.white60),
+                const SizedBox(height: 2),
+                const Text(
+                  'ViGEmBus Virtual Gamepad Driver Active • Low Latency UDP',
+                  style: TextStyle(fontSize: 10.5, color: Colors.white54),
                 ),
               ],
             ),
           ],
         ),
         actions: [
+          // Driver Status Pill
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle, size: 12, color: Color(0xFF38BDF8)),
+                SizedBox(width: 6),
+                Text('Driver: Ready', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white70)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+
           // Connection Status Pill
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
@@ -156,7 +193,7 @@ class _ReceiverDashboardScreenState extends State<ReceiverDashboardScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isPaired ? 'PHONE CONNECTED' : 'WAITING FOR SCAN',
+                  isPaired ? 'PLAYER 1 CONNECTED' : 'WAITING FOR CONNECTION',
                   style: TextStyle(
                     color: isPaired ? const Color(0xFF6EE7B7) : Colors.white70,
                     fontWeight: FontWeight.bold,
@@ -299,12 +336,65 @@ class _ReceiverDashboardScreenState extends State<ReceiverDashboardScreen> {
               ),
               child: QrCodeWidget(
                 data: qrData,
-                size: 240,
+                size: 230,
                 backgroundColor: Colors.white,
                 foregroundColor: const Color(0xFF0F172A),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // Prominent IP & Port Display for Direct / Manual Connection (RemoteGamepad style)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.4)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Column(
+                        children: [
+                          const Text(
+                            'PC IP ADDRESS & PORT',
+                            style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, letterSpacing: 1),
+                          ),
+                          const SizedBox(height: 4),
+                          SelectableText(
+                            '${_networkManager.localIp} : ${_networkManager.port}',
+                            style: const TextStyle(fontSize: 18, color: Color(0xFF60A5FA), fontWeight: FontWeight.w900, fontFamily: 'monospace'),
+                          ),
+                        ],
+                      ),
+                      Container(height: 36, width: 1, color: Colors.white12),
+                      Column(
+                        children: [
+                          const Text(
+                            'PAIRING PIN / KEY',
+                            style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, letterSpacing: 1),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _networkManager.pairCode.isNotEmpty ? _networkManager.pairCode : '4200',
+                            style: const TextStyle(fontSize: 18, color: Color(0xFF34D399), fontWeight: FontWeight.w900, fontFamily: 'monospace'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Scan the QR code with your phone, or tap "Enter PC IP Manually" on the phone app to connect.',
+                    style: TextStyle(fontSize: 11, color: Colors.white54),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
 
             // Subtle Status Hint
             Container(
@@ -327,7 +417,7 @@ class _ReceiverDashboardScreenState extends State<ReceiverDashboardScreen> {
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Listening for phone... switches to controller feed on scan',
+                    'Listening for phone... switches to controller feed on connect',
                     style: TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600),
                   ),
                 ],

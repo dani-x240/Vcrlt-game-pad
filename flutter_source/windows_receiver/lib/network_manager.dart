@@ -104,9 +104,9 @@ class NetworkManager {
       currentHz = packetsReceivedSecond;
       packetsReceivedSecond = 0;
 
-      // Check client timeout (5 seconds without packets = disconnect)
+      // Check client timeout (12 seconds without packets = disconnect)
       if (connectedClient != null) {
-        if (DateTime.now().difference(connectedClient!.lastSeen).inSeconds > 6) {
+        if (DateTime.now().difference(connectedClient!.lastSeen).inSeconds > 12) {
           connectedClient = null;
           _clientStreamController.add(null);
         }

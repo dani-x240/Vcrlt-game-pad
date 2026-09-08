@@ -62,45 +62,61 @@ class NetworkClient {
     } catch (_) {}
   }
 
-  // Parse QR Code payload, verify same Wi-Fi subnet, and auto-connect
-  Future<QrConnectionResult> connectFromQrString(String rawData) async {
+  Completer<bool>? _pairCompleter;
+  Timer? _pairRetryTimer;
+  Timer? _pairTimeoutTimer;
+
+  // Robustly extract IPv4 and Port from ANY string (JSON, URL, IP:Port, plain IP)
+  static Map<String, dynamic>? parseIpAndPort(String raw) {
     try {
-      String ip = '';
-      int port = defaultPort;
-
-      final trimmed = rawData.trim();
-      if (trimmed.startsWith('{')) {
+      final trimmed = raw.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
         final map = jsonDecode(trimmed) as Map<String, dynamic>;
-        ip = (map['ip'] ?? '').toString().trim();
-        if (map['port'] != null) {
-          port = int.tryParse(map['port'].toString()) ?? defaultPort;
-        }
-      } else if (trimmed.contains(':')) {
-        final parts = trimmed.split(':');
-        ip = parts[0].trim();
-        port = int.tryParse(parts[1].trim()) ?? defaultPort;
-      } else {
-        ip = trimmed;
+        final ip = (map['ip'] ?? '').toString().trim();
+        final port = int.tryParse(map['port']?.toString() ?? '') ?? defaultPort;
+        if (ip.isNotEmpty) return {'ip': ip, 'port': port, 'name': map['name'] ?? ''};
       }
+    } catch (_) {}
 
-      if (ip.isEmpty) {
-        return QrConnectionResult(
-          success: false,
-          ip: '',
-          port: port,
-          errorMessage: 'Invalid QR code. Please scan the Windows Receiver QR code.',
-        );
+    // Regex match for IPv4 address
+    final ipRegex = RegExp(r'\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b');
+    final match = ipRegex.firstMatch(raw);
+    if (match != null) {
+      final ip = match.group(0)!;
+      final afterIp = raw.substring(match.end);
+      final portMatch = RegExp(r'^:(\d{2,5})').firstMatch(afterIp);
+      int port = defaultPort;
+      if (portMatch != null) {
+        port = int.tryParse(portMatch.group(1)!) ?? defaultPort;
       }
+      return {'ip': ip, 'port': port, 'name': ''};
+    }
+    return null;
+  }
 
-      // Directly auto-connect to the scanned PC IP and port
-      await pairWithPc(ip: ip, port: port);
-      return QrConnectionResult(success: true, ip: ip, port: port);
-    } catch (_) {
-      return QrConnectionResult(
+  // Parse QR Code payload, verify and auto-connect
+  Future<QrConnectionResult> connectFromQrString(String rawData) async {
+    final parsed = parseIpAndPort(rawData);
+    if (parsed == null || (parsed['ip'] as String).isEmpty) {
+      return const QrConnectionResult(
         success: false,
         ip: '',
         port: defaultPort,
-        errorMessage: 'Unable to connect to PC. Make sure both are on same WiFi.',
+        errorMessage: 'Invalid QR code. Could not detect PC IP address.',
+      );
+    }
+
+    final ip = parsed['ip'] as String;
+    final port = parsed['port'] as int;
+    final success = await pairWithPc(ip: ip, port: port);
+    if (success) {
+      return QrConnectionResult(success: true, ip: ip, port: port);
+    } else {
+      return QrConnectionResult(
+        success: false,
+        ip: ip,
+        port: port,
+        errorMessage: 'Could not connect to PC at $ip:$port.\nMake sure VCRLT Windows Receiver is open and both devices are on the same Wi-Fi.',
       );
     }
   }
@@ -171,33 +187,67 @@ class NetworkClient {
     } catch (_) {}
   }
 
-  Future<void> pairWithPc({
+  Future<bool> pairWithPc({
     required String ip,
     int port = defaultPort,
     String pin = '482731',
     String deviceName = 'Android dani.x240',
+    Duration timeout = const Duration(seconds: 4),
   }) async {
     status = ConnectionStatus.connecting;
     onStatusChanged?.call(status);
+
+    _pairRetryTimer?.cancel();
+    _pairTimeoutTimer?.cancel();
 
     try {
       _targetAddress = InternetAddress(ip);
       _targetPort = port;
 
+      final completer = Completer<bool>();
+      _pairCompleter = completer;
+
       final req = VcrltPairRequest(clientName: deviceName, pairCode: pin);
       final bytes = utf8.encode(jsonEncode(req.toJson()));
+
+      // Send initial pair datagram
       _socket?.send(bytes, _targetAddress!, _targetPort);
 
-      // Start ping heartbeat
-      _heartbeatTimer?.cancel();
-      _heartbeatTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-        if (status == ConnectionStatus.connected && _targetAddress != null) {
-          // Keep-alive
+      // Retry every 350ms to guarantee UDP delivery through Wi-Fi packet loss
+      _pairRetryTimer = Timer.periodic(const Duration(milliseconds: 350), (_) {
+        if (status == ConnectionStatus.connected) {
+          _pairRetryTimer?.cancel();
+          if (!completer.isCompleted) completer.complete(true);
+        } else if (_socket != null && _targetAddress != null) {
+          try {
+            _socket?.send(bytes, _targetAddress!, _targetPort);
+          } catch (_) {}
         }
       });
+
+      // 4-second timeout
+      _pairTimeoutTimer = Timer(timeout, () {
+        _pairRetryTimer?.cancel();
+        if (!completer.isCompleted) {
+          if (status != ConnectionStatus.connected) {
+            status = ConnectionStatus.disconnected;
+            onStatusChanged?.call(status);
+          }
+          completer.complete(status == ConnectionStatus.connected);
+        }
+      });
+
+      final result = await completer.future;
+      _pairRetryTimer?.cancel();
+      _pairTimeoutTimer?.cancel();
+      _pairCompleter = null;
+      return result;
     } catch (_) {
+      _pairRetryTimer?.cancel();
+      _pairTimeoutTimer?.cancel();
       status = ConnectionStatus.disconnected;
       onStatusChanged?.call(status);
+      return false;
     }
   }
 
@@ -210,6 +260,9 @@ class NetworkClient {
   }
 
   void disconnect() {
+    _pairRetryTimer?.cancel();
+    _pairTimeoutTimer?.cancel();
+    _pairCompleter = null;
     status = ConnectionStatus.disconnected;
     _targetAddress = null;
     connectedPcName = '';
@@ -247,10 +300,19 @@ class NetworkClient {
         if (resp.success) {
           status = ConnectionStatus.connected;
           connectedPcName = resp.pcName;
+          _pairRetryTimer?.cancel();
+          _pairTimeoutTimer?.cancel();
           _discoveryTimer?.cancel();
+          _startHeartbeat();
+          if (_pairCompleter != null && !_pairCompleter!.isCompleted) {
+            _pairCompleter!.complete(true);
+          }
           onStatusChanged?.call(status);
         } else {
           status = ConnectionStatus.disconnected;
+          if (_pairCompleter != null && !_pairCompleter!.isCompleted) {
+            _pairCompleter!.complete(false);
+          }
           onStatusChanged?.call(status);
         }
       } else if (type == 'VCRLT_VIBRATE') {
@@ -258,6 +320,44 @@ class NetworkClient {
         onVibrate?.call(vib.intensity, vib.durationMs);
       }
     } catch (_) {}
+  }
+
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      if (status == ConnectionStatus.connected && _socket != null && _targetAddress != null) {
+        try {
+          final ping = {
+            'type': 'INPUT',
+            'controllerId': 1,
+            'sequence': 0,
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'leftStick': {'x': 0.0, 'y': 0.0},
+            'rightStick': {'x': 0.0, 'y': 0.0},
+            'leftTrigger': 0.0,
+            'rightTrigger': 0.0,
+            'l1': false,
+            'r1': false,
+            'dpadUp': false,
+            'dpadDown': false,
+            'dpadLeft': false,
+            'dpadRight': false,
+            'a': false,
+            'b': false,
+            'x': false,
+            'y': false,
+            'select': false,
+            'start': false,
+            'home': false,
+            'l3': false,
+            'r3': false,
+            'touchpad': {'x': 0.5, 'y': 0.5, 'active': false, 'clicked': false},
+          };
+          final bytes = utf8.encode(jsonEncode(ping));
+          _socket?.send(bytes, _targetAddress!, _targetPort);
+        } catch (_) {}
+      }
+    });
   }
 
   void dispose() {

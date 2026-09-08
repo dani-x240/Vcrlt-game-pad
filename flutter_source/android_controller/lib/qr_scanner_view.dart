@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 class QrScannerView extends StatefulWidget {
   final Function(String rawPayload) onQrDetected;
   final VoidCallback onCancel;
+  final VoidCallback? onEnterIpManually;
   final String? suggestedIp;
   final String? detectedPcName;
 
@@ -15,6 +16,7 @@ class QrScannerView extends StatefulWidget {
     super.key,
     required this.onQrDetected,
     required this.onCancel,
+    this.onEnterIpManually,
     this.suggestedIp,
     this.detectedPcName,
   });
@@ -213,10 +215,29 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: Colors.white12),
                   ),
-                  child: const Text(
-                    'Point camera at the QR code on the Windows PC screen. It pairs automatically.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Point camera at the QR code on the Windows PC screen. It pairs automatically.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                      if (widget.onEnterIpManually != null) ...[
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF60A5FA),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          ),
+                          icon: const Icon(Icons.keyboard, size: 16),
+                          label: const Text(
+                            'Or Enter PC IP Manually',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: widget.onEnterIpManually,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

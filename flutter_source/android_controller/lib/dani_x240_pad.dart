@@ -54,6 +54,10 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
   double _touchpadY = 0.5;
   bool _touchpadActive = false;
 
+  // Connection Progress States
+  bool _isConnecting = false;
+  String _connectingTarget = '';
+
   @override
   void initState() {
     super.initState();
@@ -135,30 +139,177 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
   }
 
   Future<void> _handleScannedQr(String payload) async {
-    setState(() => _isScanningQr = false);
+    final parsed = NetworkClient.parseIpAndPort(payload);
+    final targetDisplay = parsed != null ? '${parsed['ip']}:${parsed['port']}' : payload;
+
+    setState(() {
+      _isScanningQr = false;
+      _isConnecting = true;
+      _connectingTarget = targetDisplay;
+    });
+
     final result = await _client.connectFromQrString(payload);
-    if (!result.success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.wifi_off, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  result.errorMessage ?? 'Connect both devices to same WiFi',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFFDC2626),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+
+    if (mounted) {
+      setState(() => _isConnecting = false);
     }
+
+    if (!result.success && mounted) {
+      _showConnectionFailedDialog(result.ip, result.port, result.errorMessage);
+    }
+  }
+
+  void _showConnectionFailedDialog(String ip, int port, String? error) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF10131B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.white12),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.wifi_off, color: Colors.redAccent, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Connection Failed',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              ip.isNotEmpty ? 'Could not reach PC Receiver at $ip:$port' : 'Could not reach PC Receiver.',
+              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('TROUBLESHOOTING:', style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 6),
+                  Text('1. Ensure VCRLT Windows Receiver is running on your PC (third-party receivers like RemoteGamepad use incompatible software).', style: TextStyle(color: Colors.white70, fontSize: 11.5)),
+                  SizedBox(height: 6),
+                  Text('2. Ensure Phone and PC are connected to the exact same Wi-Fi router or Mobile Hotspot.', style: TextStyle(color: Colors.white70, fontSize: 11.5)),
+                  SizedBox(height: 6),
+                  Text('3. Ensure Windows Firewall allowed VCRLT Receiver.', style: TextStyle(color: Colors.white70, fontSize: 11.5)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showManualIpDialog(initialIp: ip);
+            },
+            child: const Text('Enter IP Manually', style: TextStyle(color: Color(0xFF60A5FA))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (ip.isNotEmpty) {
+                _handleScannedQr(ip);
+              }
+            },
+            child: const Text('Try Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showManualIpDialog({String initialIp = ''}) {
+    final defaultIpText = initialIp.isNotEmpty
+        ? initialIp
+        : (_discoveredIp.isNotEmpty ? _discoveredIp : '192.168.1.');
+    final controller = TextEditingController(text: defaultIpText);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF10131B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.white12),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.edit_note, color: Color(0xFF3B82F6)),
+            SizedBox(width: 10),
+            Text('Enter PC IP Address', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Look at the VCRLT PC Receiver window on your computer screen for the exact IP address:',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontFamily: 'monospace', fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                hintText: 'e.g. 192.168.1.105',
+                hintStyle: const TextStyle(color: Colors.white24),
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                prefixIcon: const Icon(Icons.laptop, color: Colors.blueAccent),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final text = controller.text.trim();
+              Navigator.pop(ctx);
+              if (text.isNotEmpty) {
+                _handleScannedQr(text);
+              }
+            },
+            child: const Text('Connect Now'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -168,6 +319,10 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
         suggestedIp: _discoveredIp,
         detectedPcName: _discoveredPcName,
         onCancel: () => setState(() => _isScanningQr = false),
+        onEnterIpManually: () {
+          setState(() => _isScanningQr = false);
+          _showManualIpDialog();
+        },
         onQrDetected: (payload) => _handleScannedQr(payload),
       );
     }
@@ -257,56 +412,133 @@ class _DaniX240PadScreenState extends State<DaniX240PadScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Auto-discovered PC on same Wi-Fi
-              if (_discoveredPcName != null && _discoveredIp.isNotEmpty) ...[
+              // Active Connecting State
+              if (_isConnecting) ...[
                 Container(
                   width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF3B82F6).withOpacity(0.2),
+                        blurRadius: 16,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      const SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF60A5FA)),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'CONNECTING TO $_connectingTarget',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 0.5),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Sending pairing handshake to VCRLT Windows Receiver...',
+                        style: TextStyle(fontSize: 11, color: Colors.white60),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () {
+                          _client.disconnect();
+                          setState(() => _isConnecting = false);
+                        },
+                        child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                // Auto-discovered PC on same Wi-Fi
+                if (_discoveredPcName != null && _discoveredIp.isNotEmpty) ...[
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        elevation: 6,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      icon: const Icon(Icons.flash_on, color: Colors.amber, size: 22),
+                      label: Text(
+                        'AUTO-LINK: $_discoveredPcName ($_discoveredIp)',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
+                      ),
+                      onPressed: () {
+                        _handleScannedQr('{"ip":"$_discoveredIp","port":4200,"name":"$_discoveredPcName"}');
+                      },
+                    ),
+                  ),
+                ],
+
+                // PRIMARY: Scan QR Code of PC
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
+                      backgroundColor: const Color(0xFF2563EB),
                       elevation: 6,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
-                    icon: const Icon(Icons.flash_on, color: Colors.amber, size: 22),
-                    label: Text(
-                      'AUTO-LINK: $_discoveredPcName ($_discoveredIp)',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
+                    icon: const Icon(Icons.qr_code_scanner, size: 24),
+                    label: const Text(
+                      'Scan QR Code of PC',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 0.8),
                     ),
                     onPressed: () {
-                      _handleScannedQr('{"ip":"$_discoveredIp","port":4200,"name":"$_discoveredPcName"}');
+                      setState(() => _isScanningQr = true);
                     },
                   ),
                 ),
-              ],
+                const SizedBox(height: 12),
 
-              // ONLY ONE OPTION: Scan QR Code of PC
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    elevation: 6,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                // SECONDARY: Enter IP Manually
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white24),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.keyboard, size: 20, color: Color(0xFF60A5FA)),
+                    label: const Text(
+                      'Enter PC IP Manually',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    onPressed: () => _showManualIpDialog(),
                   ),
-                  icon: const Icon(Icons.qr_code_scanner, size: 24),
-                  label: const Text(
-                    'Scan QR Code of PC',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 0.8),
-                  ),
-                  onPressed: () {
-                    setState(() => _isScanningQr = true);
-                  },
                 ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Tap to open camera and scan the QR code auto-generated on your PC Receiver screen.',
-                style: TextStyle(fontSize: 11, color: Colors.white38, height: 1.3),
-                textAlign: TextAlign.center,
-              ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Scan the QR code on your PC screen, or enter the PC IP address shown in the receiver window.',
+                  style: TextStyle(fontSize: 11, color: Colors.white38, height: 1.3),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
           ),
         ),
