@@ -41,6 +41,7 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
       torchEnabled: false,
+      autoStart: false,
     );
 
     _animController = AnimationController(
@@ -64,9 +65,15 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
         _isLoading = false;
       });
       if (_hasPermission) {
-        _controller.start();
+        try {
+          await _controller.start();
+        } catch (_) {}
       }
     }
+  }
+
+  Widget _buildScannerError(BuildContext context, dynamic error, [dynamic child]) {
+    return _fallback('Camera unavailable: $error');
   }
 
   @override
@@ -102,7 +109,7 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
             MobileScanner(
               controller: _controller,
               onDetect: _onDetect,
-              errorBuilder: (ctx, err, _) => _fallback('Camera unavailable: ${err.errorCode}'),
+              errorBuilder: _buildScannerError,
             )
           else if (_isLoading)
             const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))

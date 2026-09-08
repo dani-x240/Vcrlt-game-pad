@@ -364,7 +364,7 @@ class _ReceiverDashboardScreenState extends State<ReceiverDashboardScreen> {
                           ),
                           const SizedBox(height: 4),
                           SelectableText(
-                            '${_networkManager.localIp} : ${_networkManager.port}',
+                            '${_networkManager.localIp} : ${NetworkManager.port}',
                             style: const TextStyle(fontSize: 18, color: Color(0xFF60A5FA), fontWeight: FontWeight.w900, fontFamily: 'monospace'),
                           ),
                         ],
